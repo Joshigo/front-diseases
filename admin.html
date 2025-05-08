@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css">
+    <title>Administración de Pacientes</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 400px;
+            /* Define un tamaño para el mapa */
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f8ff;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #007bff;
+            text-align: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid #ddd;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        .button-group button {
+            display: block;
+            width: 48%;
+            padding: 10px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .button-group button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Pacientes</h1>
+        <table id="patientsTable">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Cédula</th>
+                    <th>Teléfono</th>
+                    <th>Edad</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Los pacientes se insertarán aquí dinámicamente -->
+            </tbody>
+        </table>
+        <div id="map"></div>
+        <div class="button-group">
+            <button id="backButton" class="button">Volver</button>
+            <button id="questionsButton" class="button">Agregar preguntas</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const fetchPatients = (name = '') => {
+                axios.get(`http://127.0.0.1:8000/api/patients?name=${name}`)
+                    .then(function (response) {
+                        const patients = response.data;
+                        const tableBody = document.querySelector('#patientsTable tbody');
+                        tableBody.innerHTML = '';
+
+                        patients.forEach(patient => {
+                            const row = document.createElement('tr');
+
+                            const nameCell = document.createElement('td');
+                            nameCell.textContent = `${patient.name} ${patient.last_name}`;
+                            row.appendChild(nameCell);
+
+                            const ciCell = document.createElement('td');
+                            ciCell.textContent = patient.ci;
+                            row.appendChild(ciCell);
+
+                            const phoneCell = document.createElement('td');
+                            phoneCell.textContent = patient.phone;
+                            row.appendChild(phoneCell);
+
+                            const ageCell = document.createElement('td');
+                            ageCell.textContent = patient.age;
+                            row.appendChild(ageCell);
+
+                            tableBody.appendChild(row);
+
+                            const color = determinarColor(patient.percentage);
+                            agregarPuntoAlMapa(patient.lat, patient.long, color);
+                        });
+                    })
+                    .catch(function (error) {
+                        console.error('Error fetching patients:', error);
+                    });
+            };
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = 'Buscar paciente por nombre';
+            input.addEventListener('input', function () {
+                const name = input.value;
+                fetchPatients(name);
+            });
+            document.querySelector('.container').insertBefore(input, document.querySelector('#patientsTable'));
+
+            fetchPatients();
+
+            let map = L.map('map').setView([10.4806, -66.9036], 6);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            function agregarPuntoAlMapa(lat, lng, color) {
+                let marker = L.circleMarker([lat, lng], {
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.8,
+                    radius: 8
+                }).addTo(map);
+
+                marker.bindPopup(`Nivel de gravedad: <strong>${color.toUpperCase()}</strong>`).openPopup();
+            }
+
+            function determinarColor(percentage) {
+                if (percentage >= 75) return "red";
+                if (percentage >= 50) return "orange";
+                if (percentage >= 25) return "yellow";
+                return "green";
+            }
+
+            document.getElementById('backButton').addEventListener('click', function () {
+                window.location.href = 'register.html';
+            });
+
+            document.getElementById('questionsButton').addEventListener('click', function () {
+                window.location.href = 'setQuetions.html';
+            });
+        });
+
+    </script>
+</body>
+
+</html>

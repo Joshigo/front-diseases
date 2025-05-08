@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulario de Preguntas sobre Dengue</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .form-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            margin-bottom: 20px;
+        }
+
+        .form-container h2 {
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="checkbox"] {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+
+        .form-group input[type="checkbox"] {
+            width: auto;
+        }
+
+        .form-group button {
+            width: 100%;
+            padding: 10px;
+            background-color: #28a745;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .form-group button:hover {
+            background-color: #218838;
+        }
+
+        .message {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .message.success {
+            color: #28a745;
+        }
+
+        .message.error {
+            color: #dc3545;
+        }
+
+        .table-container {
+            width: 80%;
+            max-width: 800px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid #ddd;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .delete-button {
+            background-color: #dc3545;
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .delete-button:hover {
+            background-color: #c82333;
+        }
+
+        .button-container {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            width: 300px;
+        }
+
+        .button-container button {
+            padding: 10px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .button-container button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="form-container">
+        <h2>Agregar Pregunta sobre Dengue</h2>
+        <form id="questionForm">
+            <div class="form-group">
+                <label for="question">Pregunta:</label>
+                <input type="text" id="question" name="question" required>
+            </div>
+            <div class="form-group">
+                <label for="isDanger">¿Es Peligroso?</label>
+                <input type="checkbox" id="isDanger" name="isDanger">
+            </div>
+            <div class="form-group">
+                <button type="submit">Enviar</button>
+            </div>
+        </form>
+        <div class="message" id="message"></div>
+    </div>
+
+    <div class="table-container">
+        <table id="questionsTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Pregunta</th>
+                    <th>¿Es Peligroso?</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Las preguntas se insertarán aquí -->
+            </tbody>
+        </table>
+    </div>
+
+    <div class="button-container">
+        <button onclick="window.location.href='admin.html'">Ver Resultados</button>
+        <button onclick="window.location.href='register.html'">Registrar Paciente</button>
+    </div>
+
+    <script>
+        document.getElementById('questionForm').addEventListener('submit', async function (event) {
+            event.preventDefault();
+
+            const question = document.getElementById('question').value;
+            const isDanger = document.getElementById('isDanger').checked;
+
+            const response = await fetch('http://127.0.0.1:8000/api/questions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    disease_id: 1,
+                    name: question,
+                    IsDanger: isDanger
+                })
+            });
+
+            const messageElement = document.getElementById('message');
+            if (response.status === 201) {
+                messageElement.textContent = 'Pregunta creada correctamente.';
+                messageElement.className = 'message success';
+                messageElement.style.display = 'block';
+                document.getElementById('questionForm').reset();
+                loadQuestions();
+            } else {
+                messageElement.textContent = 'Error al crear la pregunta.';
+                messageElement.className = 'message error';
+                messageElement.style.display = 'block';
+            }
+        });
+
+        async function loadQuestions() {
+            const response = await fetch('http://127.0.0.1:8000/api/questions');
+            const questions = await response.json();
+            const tableBody = document.getElementById('questionsTable').querySelector('tbody');
+            tableBody.innerHTML = '';
+
+            questions.forEach(question => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${question.id}</td>
+                    <td>${question.name}</td>
+                    <td>${question.IsDanger ? 'Sí' : 'No'}</td>
+                    <td><button class="delete-button" onclick="deleteQuestion(${question.id})">Eliminar</button></td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        async function deleteQuestion(id) {
+            const response = await fetch(`http://127.0.0.1:8000/api/questions/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (response.status === 200) {
+                loadQuestions();
+            } else {
+                alert('Error al eliminar la pregunta.');
+            }
+        }
+
+        // Cargar las preguntas al cargar la página
+        loadQuestions();
+    </script>
+</body>
+
+</html>

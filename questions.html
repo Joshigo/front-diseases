@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css">
+    <title>Preguntas</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 400px;
+            /* Define un tamaño para el mapa */
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f8ff;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #007bff;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #007bff;
+        }
+
+        .form-group .button-group {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        .button-group button {
+            display: block;
+            width: 48%;
+            padding: 10px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .button-group button:hover {
+            background-color: #0056b3;
+        }
+
+        .submit-button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background-color: #28a745;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .submit-button:hover {
+            background-color: #218838;
+        }
+
+        .response-button {
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+
+        .yes-button {
+            background-color: #f44336;
+        }
+
+        .no-button {
+            background-color: #007bff;
+        }
+
+        .response-button:hover {
+            opacity: 0.8;
+        }
+
+        .response-button.selected {
+            background-color: #c41e3a;
+            /* Stronger Red for "Sí" */
+        }
+
+        .no-button.selected {
+            background-color: #0056b3;
+        }
+    </style>
+
+
+
+
+<body>
+    <div class="container">
+        <h1>Preguntas</h1>
+        <form id="questionsForm">
+        </form>
+        <div class="button-group">
+            <button id="backButton" class="button">Volver</button>
+            <button id="epidemiologyButton" class="button">Epidemiología</button>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const urlParams = new URLSearchParams(window.location.search);
+            const patientId = urlParams.get('patientId');
+
+            axios.get('http://127.0.0.1:8000/api/questions')
+                .then(function (response) {
+                    const questions = response.data;
+                    const form = document.getElementById('questionsForm');
+
+                    questions.forEach(question => {
+                        const formGroup = document.createElement('div');
+                        formGroup.className = 'form-group';
+
+                        const label = document.createElement('label');
+                        label.textContent = question.name;
+                        formGroup.appendChild(label);
+
+                        const buttonGroup = document.createElement('div');
+                        buttonGroup.className = 'button-group';
+
+                        const yesButton = document.createElement('button');
+                        yesButton.type = 'button';
+                        yesButton.textContent = 'Sí';
+                        yesButton.className = 'response-button yes-button';
+                        yesButton.dataset.value = true;
+                        yesButton.dataset.question = question.id;
+                        buttonGroup.appendChild(yesButton);
+
+                        const noButton = document.createElement('button');
+                        noButton.type = 'button';
+                        noButton.textContent = 'No';
+                        noButton.className = 'response-button no-button';
+                        noButton.dataset.value = false;
+                        noButton.dataset.question = question.id;
+                        buttonGroup.appendChild(noButton);
+
+                        formGroup.appendChild(buttonGroup);
+                        form.appendChild(formGroup);
+
+                        yesButton.addEventListener('click', function () {
+                            yesButton.classList.add('selected');
+                            noButton.classList.remove('selected');
+                            yesButton.dataset.selected = true;
+                            noButton.dataset.selected = false;
+                        });
+
+                        noButton.addEventListener('click', function () {
+                            noButton.classList.add('selected');
+                            yesButton.classList.remove('selected');
+                            noButton.dataset.selected = true;
+                            yesButton.dataset.selected = false;
+                        });
+                    });
+
+                    const submitButton = document.createElement('button');
+                    submitButton.type = 'submit';
+                    submitButton.textContent = 'Enviar';
+                    submitButton.className = 'submit-button';
+                    form.appendChild(submitButton);
+
+                    form.addEventListener('submit', function (event) {
+                        event.preventDefault();
+
+                        submitButton.disabled = true;
+
+                        const questionIds = [];
+                        const responses = [];
+
+                        questions.forEach(question => {
+                            const yesButton = document.querySelector(`button[data-question="${question.id}"][data-value="true"]`);
+                            const noButton = document.querySelector(`button[data-question="${question.id}"][data-value="false"]`);
+                            const response = yesButton && yesButton.classList.contains('selected') ? true : noButton && noButton.classList.contains('selected') ? false : null;
+
+                            if (response !== null) {
+                                questionIds.push(question.id);
+                                responses.push(response);
+                            }
+                        });
+
+                        const data = {
+                            question_ids: questionIds,
+                            patient_id: patientId,
+                            responses: responses
+                        };
+
+                        axios.post('http://127.0.0.1:8000/api/answers', data)
+                            .then(function (response) {
+                                alert('Respuestas enviadas con éxito');
+                                const percentage = response.data.percentage;
+
+                                if (navigator.geolocation) {
+                                    navigator.geolocation.getCurrentPosition(function (position) {
+                                        const lat = position.coords.latitude;
+                                        const lng = position.coords.longitude;
+                                        const color = determinarColor(percentage);
+                                        agregarPuntoAlMapa(lat, lng, color);
+
+                                        axios.post('http://127.0.0.1:8000/api/patients/setLocation', {
+                                            patient_id: patientId,
+                                            lat: lat,
+                                            long: lng,
+                                            percentage: percentage
+                                        })
+                                            .then(function (response) {
+                                                console.log('Ubicación enviada con éxito');
+                                            })
+                                            .catch(function (error) {
+                                                console.error('Error enviando ubicación:', error);
+                                            });
+                                    });
+                                } else {
+                                    alert("Geolocalización no es soportada por este navegador.");
+                                }
+                            })
+                            .catch(function (error) {
+                                console.error('Error enviando respuestas:', error);
+                            });
+                    });
+                })
+                .catch(function (error) {
+                    console.error('Error fetching questions:', error);
+                });
+
+            let map = L.map('map').setView([10.4806, -66.9036], 6);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            function agregarPuntoAlMapa(lat, lng, color) {
+                let marker = L.circleMarker([lat, lng], {
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.8,
+                    radius: 8
+                }).addTo(map);
+
+                marker.bindPopup(`Nivel de gravedad: <strong>${color.toUpperCase()}</strong>`).openPopup();
+            }
+
+            function determinarColor(percentage) {
+                if (percentage >= 75) return "red";
+                if (percentage >= 50) return "orange";
+                if (percentage >= 25) return "yellow";
+                return "green";
+            }
+
+            document.getElementById('backButton').addEventListener('click', function () {
+                window.location.href = 'register.html';
+            });
+
+            document.getElementById('epidemiologyButton').addEventListener('click', function () {
+                window.location.href = 'admin.html';
+            });
+        });
+    </script>
+</body>
+
+
+</html>

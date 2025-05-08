@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Usuario</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f8ff;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #007bff;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #007bff;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .form-group button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .form-group button:hover {
+            background-color: #0056b3;
+        }
+
+        .message {
+            color: red;
+            display: none;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        .button-group button {
+            display: block;
+            width: 48%;
+            padding: 10px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .button-group button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Registro de Usuario</h1>
+        <form id="registerForm">
+            <div class="form-group">
+                <label for="name">Nombre</label>
+                <input type="text" id="name" name="name" pattern="[A-Za-z\s]+"
+                    title="Solo se permiten letras y espacios" required>
+            </div>
+            <div class="form-group">
+                <label for="last_name">Apellido</label>
+                <input type="text" id="last_name" name="last_name" pattern="[A-Za-z\s]+"
+                    title="Solo se permiten letras y espacios" required>
+            </div>
+
+            <div class="form-group">
+                <label for="age">Edad</label>
+                <input type="number" id="age" name="age" required>
+            </div>
+            <div class="form-group">
+                <label for="ci_type">Cédula de identidad</label>
+                <select id="ci_type" name="ci_type" required>
+                    <option value="V">V</option>
+                    <option value="J">J</option>
+                    <option value="E">E</option>
+                </select>
+                <input type="number" id="ci_number" name="ci_number" pattern="\d+" title="Solo se permiten números"
+                    required>
+            </div>
+            <div class="form-group">
+                <label for="phone">Teléfono</label>
+                <input type="number" id="phone" name="phone" required>
+            </div>
+            <div class="form-group">
+                <button type="submit">Registrar</button>
+            </div>
+
+            <div class="button-group">
+                <button id="backButton" class="button">Volver</button>
+                <button id="epidemiologyButton" class="button">Epidemiología</button>
+            </div>
+            <div id="ciErrorMessage" style="display: none; color: red;"></div>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            const age = document.getElementById('age').value;
+            const ciType = document.getElementById('ci_type').value;
+            const ciNumber = document.getElementById('ci_number').value;
+            const formData = {
+                name: document.getElementById('name').value,
+                last_name: document.getElementById('last_name').value,
+                age: age,
+                phone: document.getElementById('phone').value
+            };
+
+            if (age >= 10) {
+                formData.ci = ciType + ciNumber;
+            }
+
+            axios.post('http://127.0.0.1:8000/api/patients', formData)
+                .then(function (response) {
+                    alert('Usuario registrado con éxito');
+                    const patientId = response.data.id;
+                    window.location.href = `questions.html?patientId=${patientId}`; // Redirigir a la vista de preguntas con el ID del paciente
+                })
+                .catch(function (error) {
+                    if (error.response && error.response.data && error.response.data.errors && error.response.data.errors.ci) {
+                        const ciErrorMessage = document.getElementById('ciErrorMessage');
+                        ciErrorMessage.textContent = error.response.data.errors.ci[0];
+                        ciErrorMessage.style.display = 'block';
+                    } else {
+                        console.error('Error registrando usuario:', error);
+                    }
+                });
+        });
+
+        document.getElementById('age').addEventListener('input', function () {
+            const age = document.getElementById('age').value;
+            const ciInput = document.getElementById('ci');
+            const ageMessage = document.getElementById('ageMessage');
+            if (age < 10) {
+                ciInput.setAttribute('disabled', 'disabled');
+                ciInput.removeAttribute('required');
+                ageMessage.style.display = 'block';
+            } else {
+                ciInput.removeAttribute('disabled');
+                ciInput.setAttribute('required', 'required');
+                ageMessage.style.display = 'none';
+            }
+        });
+
+        document.getElementById('backButton').addEventListener('click', function () {
+            window.location.href = 'index.html';
+        });
+
+        document.getElementById('epidemiologyButton').addEventListener('click', function () {
+            window.location.href = 'admin.html';
+        });
+    </script>
+</body>
+
+</html>
