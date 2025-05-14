@@ -10,7 +10,6 @@
     <style>
         #map {
             height: 400px;
-            /* Define un tamaño para el mapa */
         }
 
         body {
@@ -43,12 +42,6 @@
             color: #007bff;
         }
 
-        .form-group .button-group {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 10px;
-        }
-
         .button-group {
             display: flex;
             justify-content: space-between;
@@ -56,7 +49,6 @@
         }
 
         .button-group button {
-            display: block;
             width: 48%;
             padding: 10px;
             background-color: #007bff;
@@ -64,7 +56,6 @@
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            text-align: center;
         }
 
         .button-group button:hover {
@@ -72,16 +63,7 @@
         }
 
         .submit-button {
-            display: block;
-            width: 100%;
-            padding: 10px;
             background-color: #28a745;
-            color: #fff;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            text-align: center;
-            margin-top: 20px;
         }
 
         .submit-button:hover {
@@ -101,22 +83,27 @@
             background-color: #007bff;
         }
 
-        .response-button:hover {
-            opacity: 0.8;
-        }
-
         .response-button.selected {
             background-color: #c41e3a;
-            /* Stronger Red for "Sí" */
         }
 
         .no-button.selected {
             background-color: #0056b3;
         }
+
+        .question {
+            display: none;
+        }
+
+        .question.current {
+            display: block;
+        }
+
+        #navButtons {
+            margin-top: 20px;
+        }
     </style>
-
-
-
+</head>
 
 <body>
     <div class="container">
@@ -136,13 +123,46 @@
         document.addEventListener('DOMContentLoaded', function () {
             const urlParams = new URLSearchParams(window.location.search);
             const patientId = urlParams.get('patientId');
+            let questions = [];
+            let currentQuestionIndex = 0;
+            let questionElements = [];
+            let currentPercentage = null;
+            let map = L.map('map').setView([10.4806, -66.9036], 6);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { // Quitamos el slash final
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}/.png').addTo(map);
+
+            map.on('click', function (e) {
+                if (!currentPercentage) {
+                    alert('Complete el cuestionario primero');
+                    return;
+                }
+
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+                const color = determinarColor(currentPercentage);
+                agregarPuntoAlMapa(lat, lng, color);
+
+                axios.post('http://127.0.0.1:8000/api/patients/setLocation', {
+                    patient_id: patientId,
+                    lat: lat,
+                    long: lng,
+                    percentage: currentPercentage
+                }).catch(error => console.error('Error:', error));
+            });
 
             axios.get('http://127.0.0.1:8000/api/questions')
                 .then(function (response) {
-                    const questions = response.data;
+                    questions = response.data;
                     const form = document.getElementById('questionsForm');
 
-                    questions.forEach(question => {
+                    questions.forEach((question, index) => {
+                        const questionDiv = document.createElement('div');
+                        questionDiv.className = 'question';
+                        if (index === 0) questionDiv.classList.add('current');
+
                         const formGroup = document.createElement('div');
                         formGroup.className = 'form-group';
 
@@ -169,108 +189,136 @@
                         noButton.dataset.question = question.id;
                         buttonGroup.appendChild(noButton);
 
-                        formGroup.appendChild(buttonGroup);
-                        form.appendChild(formGroup);
-
                         yesButton.addEventListener('click', function () {
                             yesButton.classList.add('selected');
                             noButton.classList.remove('selected');
-                            yesButton.dataset.selected = true;
-                            noButton.dataset.selected = false;
                         });
 
                         noButton.addEventListener('click', function () {
                             noButton.classList.add('selected');
                             yesButton.classList.remove('selected');
-                            noButton.dataset.selected = true;
-                            yesButton.dataset.selected = false;
                         });
+
+                        formGroup.appendChild(buttonGroup);
+                        questionDiv.appendChild(formGroup);
+                        form.appendChild(questionDiv);
+                        questionElements.push(questionDiv);
                     });
 
-                    const submitButton = document.createElement('button');
-                    submitButton.type = 'submit';
-                    submitButton.textContent = 'Enviar';
-                    submitButton.className = 'submit-button';
-                    form.appendChild(submitButton);
+                    const navButtons = document.createElement('div');
+                    navButtons.id = 'navButtons';
+                    navButtons.className = 'button-group';
 
-                    form.addEventListener('submit', function (event) {
-                        event.preventDefault();
+                    const prevButton = document.createElement('button');
+                    prevButton.type = 'button';
+                    prevButton.textContent = 'Anterior';
+                    prevButton.id = 'prevButton';
+                    prevButton.disabled = true;
 
-                        submitButton.disabled = true;
+                    const nextButton = document.createElement('button');
+                    nextButton.type = 'button';
+                    nextButton.textContent = 'Siguiente';
+                    nextButton.id = 'nextButton';
 
-                        const questionIds = [];
-                        const responses = [];
+                    navButtons.appendChild(prevButton);
+                    navButtons.appendChild(nextButton);
+                    form.appendChild(navButtons);
 
-                        questions.forEach(question => {
-                            const yesButton = document.querySelector(`button[data-question="${question.id}"][data-value="true"]`);
-                            const noButton = document.querySelector(`button[data-question="${question.id}"][data-value="false"]`);
-                            const response = yesButton && yesButton.classList.contains('selected') ? true : noButton && noButton.classList.contains('selected') ? false : null;
+                    prevButton.addEventListener('click', () => {
+                        if (currentQuestionIndex > 0) {
+                            questionElements[currentQuestionIndex].classList.remove('current');
+                            currentQuestionIndex--;
+                            questionElements[currentQuestionIndex].classList.add('current');
+                            nextButton.textContent = 'Siguiente';
+                            prevButton.disabled = currentQuestionIndex === 0;
+                        }
+                    });
 
-                            if (response !== null) {
-                                questionIds.push(question.id);
-                                responses.push(response);
+                    nextButton.addEventListener('click', () => {
+                        const currentQuestion = questions[currentQuestionIndex];
+                        const yesButton = document.querySelector(`button[data-question="${currentQuestion.id}"][data-value="true"]`);
+                        const noButton = document.querySelector(`button[data-question="${currentQuestion.id}"][data-value="false"]`);
+                        const isAnswered = yesButton.classList.contains('selected') || noButton.classList.contains('selected');
+
+                        if (!isAnswered) {
+                            alert('Por favor responde esta pregunta antes de continuar.');
+                            return;
+                        }
+
+                        if (currentQuestionIndex < questions.length - 1) {
+                            questionElements[currentQuestionIndex].classList.remove('current');
+                            currentQuestionIndex++;
+                            questionElements[currentQuestionIndex].classList.add('current');
+                            prevButton.disabled = false;
+                            if (currentQuestionIndex === questions.length - 1) {
+                                nextButton.textContent = 'Enviar';
                             }
-                        });
-
-                        const data = {
-                            question_ids: questionIds,
-                            patient_id: patientId,
-                            responses: responses
-                        };
-
-                        axios.post('http://127.0.0.1:8000/api/answers', data)
-                            .then(function (response) {
-                                alert('Respuestas enviadas con éxito');
-                                const percentage = response.data.percentage;
-
-                                if (navigator.geolocation) {
-                                    navigator.geolocation.getCurrentPosition(function (position) {
-                                        const lat = position.coords.latitude;
-                                        const lng = position.coords.longitude;
-                                        const color = determinarColor(percentage);
-                                        agregarPuntoAlMapa(lat, lng, color);
-
-                                        axios.post('http://127.0.0.1:8000/api/patients/setLocation', {
-                                            patient_id: patientId,
-                                            lat: lat,
-                                            long: lng,
-                                            percentage: percentage
-                                        })
-                                            .then(function (response) {
-                                                console.log('Ubicación enviada con éxito');
-                                            })
-                                            .catch(function (error) {
-                                                console.error('Error enviando ubicación:', error);
-                                            });
-                                    });
-                                } else {
-                                    alert("Geolocalización no es soportada por este navegador.");
-                                }
-                            })
-                            .catch(function (error) {
-                                console.error('Error enviando respuestas:', error);
-                            });
+                        } else {
+                            form.dispatchEvent(new Event('submit'));
+                        }
                     });
-                })
-                .catch(function (error) {
-                    console.error('Error fetching questions:', error);
                 });
 
-            let map = L.map('map').setView([10.4806, -66.9036], 6);
 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
+            const form = document.getElementById('questionsForm');
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+
+                const questionIds = [];
+                const responses = [];
+
+                questions.forEach(question => {
+                    const yesButton = document.querySelector(`button[data-question="${question.id}"][data-value="true"]`);
+                    const noButton = document.querySelector(`button[data-question="${question.id}"][data-value="false"]`);
+                    const response = yesButton.classList.contains('selected') ? true : noButton.classList.contains('selected') ? false : null;
+
+                    if (response !== null) {
+                        questionIds.push(question.id);
+                        responses.push(response);
+                    }
+                });
+
+                const data = {
+                    question_ids: questionIds,
+                    patient_id: patientId,
+                    responses: responses
+                };
+
+                axios.post('http://127.0.0.1:8000/api/answers', data)
+                    .then(function (response) {
+                        alert('Respuestas enviadas con éxito');
+                        currentPercentage = response.data.percentage;
+
+                        if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(function (position) {
+                                const lat = position.coords.latitude;
+                                const lng = position.coords.longitude;
+                                const color = determinarColor(currentPercentage);
+                                agregarPuntoAlMapa(lat, lng, color);
+
+                                axios.post('http://127.0.0.1:8000/api/patients/setLocation', {
+                                    patient_id: patientId,
+                                    lat: lat,
+                                    long: lng,
+                                    percentage: currentPercentage
+                                });
+                            });
+                        }
+                    })
+                    .catch(function (error) {
+                        console.error('Error:', error);
+                    });
+            });
+
+
 
             function agregarPuntoAlMapa(lat, lng, color) {
-                let marker = L.circleMarker([lat, lng], {
+                L.circleMarker([lat, lng], {
                     color: color,
                     fillColor: color,
                     fillOpacity: 0.8,
                     radius: 8
-                }).addTo(map);
-
-                marker.bindPopup(`Nivel de gravedad: <strong>${color.toUpperCase()}</strong>`).openPopup();
+                }).addTo(map).bindPopup(`Nivel de gravedad: <strong>${color.toUpperCase()}</strong>`).openPopup();
             }
 
             function determinarColor(percentage) {
@@ -280,16 +328,15 @@
                 return "green";
             }
 
-            document.getElementById('backButton').addEventListener('click', function () {
+            document.getElementById('backButton').addEventListener('click', () => {
                 window.location.href = 'register.html';
             });
 
-            document.getElementById('epidemiologyButton').addEventListener('click', function () {
+            document.getElementById('epidemiologyButton').addEventListener('click', () => {
                 window.location.href = 'admin.html';
             });
         });
     </script>
 </body>
-
 
 </html>
