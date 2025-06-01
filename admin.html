@@ -4,19 +4,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="styles.css">
     <title>Administración de Pacientes</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        #map {
-            height: 400px;
-            /* Define un tamaño para el mapa */
-        }
-
+        /* Estilos base */
         body {
             font-family: Arial, sans-serif;
             background-color: #f0f8ff;
             color: #333;
+        }
+
+        .view-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 12px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
         }
 
         .container {
@@ -77,12 +86,131 @@
         .button-group button:hover {
             background-color: #0056b3;
         }
+
+        #map {
+            height: 400px;
+            margin-top: 20px;
+        }
+
+        /* Nuevos estilos para el modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+
+        .close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #aaa;
+        }
+
+        .close:hover {
+            color: #333;
+        }
+
+        .modal-header {
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .modal-body {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .question-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-left: 4px solid #007bff;
+            background-color: #f8f9fa;
+        }
+
+        .question-item.danger {
+            border-left: 4px solid #dc3545;
+        }
+
+        .question-text {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .response-text {
+            color: #555;
+        }
+
+        .response-true {
+            color: #28a745;
+        }
+
+        .response-false {
+            color: #dc3545;
+        }
+
+        .danger-text {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        /* Estilos para el botón de vista */
+        .view-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2em;
+            padding: 5px;
+            color: #007bff;
+        }
+
+        .view-btn:hover {
+            color: #0056b3;
+        }
+
+        /* Buscador */
+        .search-container {
+            margin-bottom: 15px;
+            display: flex;
+        }
+
+        .search-container input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
     </style>
 </head>
 
 <body>
     <div class="container">
         <h1>Pacientes</h1>
+
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Buscar paciente por nombre">
+        </div>
+
         <table id="patientsTable">
             <thead>
                 <tr>
@@ -90,89 +218,219 @@
                     <th>Cédula</th>
                     <th>Teléfono</th>
                     <th>Edad</th>
+                    <th>Acción</th>
                 </tr>
             </thead>
             <tbody>
                 <!-- Los pacientes se insertarán aquí dinámicamente -->
             </tbody>
         </table>
+
         <div id="map"></div>
+
         <div class="button-group">
             <button id="backButton" class="button">Volver</button>
             <button id="questionsButton" class="button">Agregar preguntas</button>
         </div>
     </div>
 
+    <!-- Modal para mostrar las respuestas -->
+    <div id="patientModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div class="modal-header">
+                <h2 id="modalTitle">Respuestas del Paciente</h2>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Las respuestas se cargarán aquí -->
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script>
-
         document.addEventListener('DOMContentLoaded', function () {
-            const fetchPatients = (name = '') => {
+            // Variables globales
+            let map;
+            let markers = [];
+
+            // Elementos del DOM
+            const searchInput = document.getElementById('searchInput');
+            const patientsTableBody = document.querySelector('#patientsTable tbody');
+            const modal = document.getElementById('patientModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            const closeModal = document.querySelector('.close');
+
+            // Inicializar el mapa
+            function initMap() {
+                map = L.map('map').setView([10.4806, -66.9036], 6);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+            }
+
+            // Cargar pacientes
+            function fetchPatients(name = '') {
                 axios.get(`http://127.0.0.1:8000/api/patients?name=${name}`)
                     .then(function (response) {
                         const patients = response.data;
-                        const tableBody = document.querySelector('#patientsTable tbody');
-                        tableBody.innerHTML = '';
-
-                        patients.forEach(patient => {
-                            const row = document.createElement('tr');
-
-                            const nameCell = document.createElement('td');
-                            nameCell.textContent = `${patient.name} ${patient.last_name}`;
-                            row.appendChild(nameCell);
-
-                            const ciCell = document.createElement('td');
-                            ciCell.textContent = patient.ci;
-                            row.appendChild(ciCell);
-
-                            const phoneCell = document.createElement('td');
-                            phoneCell.textContent = patient.phone;
-                            row.appendChild(phoneCell);
-
-                            const ageCell = document.createElement('td');
-                            ageCell.textContent = patient.age;
-                            row.appendChild(ageCell);
-
-                            tableBody.appendChild(row);
-
-                            const color = determinarColor(patient.percentage);
-                            agregarPuntoAlMapa(patient.lat, patient.long, color);
-                        });
+                        renderPatients(patients);
+                        updateMap(patients);
                     })
                     .catch(function (error) {
                         console.error('Error fetching patients:', error);
                     });
-            };
+            }
 
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.placeholder = 'Buscar paciente por nombre';
-            input.addEventListener('input', function () {
-                const name = input.value;
-                fetchPatients(name);
-            });
-            document.querySelector('.container').insertBefore(input, document.querySelector('#patientsTable'));
+            // Renderizar tabla de pacientes
+            function renderPatients(patients) {
+                patientsTableBody.innerHTML = '';
 
-            fetchPatients();
+                patients.forEach(patient => {
+                    const row = document.createElement('tr');
 
-            let map = L.map('map').setView([10.4806, -66.9036], 6);
+                    // Nombre
+                    const nameCell = document.createElement('td');
+                    nameCell.textContent = `${patient.name} ${patient.last_name}`;
+                    row.appendChild(nameCell);
 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
+                    // Cédula
+                    const ciCell = document.createElement('td');
+                    ciCell.textContent = patient.ci;
+                    row.appendChild(ciCell);
 
+                    // Teléfono
+                    const phoneCell = document.createElement('td');
+                    phoneCell.textContent = patient.phone;
+                    row.appendChild(phoneCell);
+
+                    // Edad
+                    const ageCell = document.createElement('td');
+                    ageCell.textContent = patient.age;
+                    row.appendChild(ageCell);
+
+                    // Acción - Botón de vista
+                    const actionCell = document.createElement('td');
+                    const viewButton = document.createElement('button');
+                    viewButton.className = 'view-btn';
+                    viewButton.innerHTML = 'Ver <i class="fas fa-eye"></i>';
+                    viewButton.title = 'Ver respuestas';
+                    viewButton.addEventListener('click', function () {
+                        fetchPatientDetails(patient.id);
+                    });
+                    actionCell.appendChild(viewButton);
+                    row.appendChild(actionCell);
+
+                    patientsTableBody.appendChild(row);
+                });
+            }
+
+            // Obtener detalles del paciente para el modal
+            function fetchPatientDetails(patientId) {
+                axios.get(`http://127.0.0.1:8000/api/patients/${patientId}`)
+                    .then(function (response) {
+                        const patientData = response.data;
+                        showPatientModal(patientData);
+                    })
+                    .catch(function (error) {
+                        console.error('Error fetching patient details:', error);
+                        alert('Error al cargar los detalles del paciente. Por favor intente nuevamente.');
+                    });
+            }
+
+            // Mostrar modal con respuestas del paciente
+            function showPatientModal(patientData) {
+                // Actualizar título del modal
+                modalTitle.textContent = `Respuestas de ${patientData.name} ${patientData.last_name}`;
+
+                // Limpiar contenido previo
+                modalBody.innerHTML = '';
+
+                // Verificar si hay respuestas
+                if (!patientData.answers || patientData.answers.length === 0) {
+                    modalBody.innerHTML = '<p>Este paciente no tiene respuestas registradas.</p>';
+                    modal.style.display = 'block';
+                    return;
+                }
+
+                // Mostrar cada respuesta
+                patientData.answers.forEach(answer => {
+                    const questionItem = document.createElement('div');
+                    questionItem.className = 'question-item';
+
+                    // Aplicar estilo rojo si IsDanger es 1
+                    if (answer.question.IsDanger === 1) {
+                        questionItem.classList.add('danger');
+                    }
+
+                    // Texto de la pregunta
+                    const questionText = document.createElement('div');
+                    questionText.className = 'question-text';
+                    questionText.textContent = answer.question.name;
+
+                    // Texto de la respuesta
+                    const responseText = document.createElement('div');
+                    responseText.className = 'response-text';
+                    responseText.textContent = 'Respuesta: ';
+
+                    const responseValue = document.createElement('span');
+                    responseValue.className = answer.response ? 'response-true' : 'response-false';
+                    responseValue.textContent = answer.response ? 'Sí' : 'No';
+                    responseText.appendChild(responseValue);
+
+                    // Indicador de peligro si es necesario
+                    if (answer.question.IsDanger === 1) {
+                        const dangerText = document.createElement('div');
+                        dangerText.className = 'danger-text';
+                        dangerText.textContent = '⚠️ Esta pregunta indica posible riesgo';
+                        questionItem.appendChild(dangerText);
+                    }
+
+                    questionItem.appendChild(questionText);
+                    questionItem.appendChild(responseText);
+                    modalBody.appendChild(questionItem);
+                });
+
+                // Mostrar el modal
+                modal.style.display = 'block';
+            }
+
+            // Actualizar mapa con pacientes
+            function updateMap(patients) {
+                // Limpiar marcadores previos
+                markers.forEach(marker => map.removeLayer(marker));
+                markers = [];
+
+                // Agregar nuevos marcadores
+                patients.forEach(patient => {
+                    const color = determinarColor(patient.percentage);
+                    const marker = agregarPuntoAlMapa(patient.lat, patient.long, color);
+                    markers.push(marker);
+                });
+
+                // Ajustar vista del mapa si hay marcadores
+                if (markers.length > 0) {
+                    const group = new L.featureGroup(markers);
+                    map.fitBounds(group.getBounds());
+                }
+            }
+
+            // Agregar punto al mapa
             function agregarPuntoAlMapa(lat, lng, color) {
-                let marker = L.circleMarker([lat, lng], {
+                const marker = L.circleMarker([lat, lng], {
                     color: color,
                     fillColor: color,
                     fillOpacity: 0.8,
                     radius: 8
                 }).addTo(map);
 
-                marker.bindPopup(`Nivel de gravedad: <strong>${color.toUpperCase()}</strong>`).openPopup();
+                marker.bindPopup(`Nivel de gravedad: <strong>${color.toUpperCase()}</strong>`);
+                return marker;
             }
 
+            // Determinar color según porcentaje
             function determinarColor(percentage) {
                 if (percentage >= 75) return "red";
                 if (percentage >= 50) return "orange";
@@ -180,15 +438,35 @@
                 return "green";
             }
 
+            // Event Listeners
+            searchInput.addEventListener('input', function () {
+                fetchPatients(this.value);
+            });
+
+            closeModal.addEventListener('click', function () {
+                modal.style.display = 'none';
+            });
+
+            window.addEventListener('click', function (event) {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+
             document.getElementById('backButton').addEventListener('click', function () {
-                window.location.href = 'register.html';
+                // Simular redirección
+                alert('Redirigiendo a la página de registro...');
             });
 
             document.getElementById('questionsButton').addEventListener('click', function () {
-                window.location.href = 'setQuetions.html';
+                // Simular redirección
+                alert('Redirigiendo a la página de preguntas...');
             });
-        });
 
+            // Inicializar la aplicación
+            initMap();
+            fetchPatients();
+        });
     </script>
 </body>
 
