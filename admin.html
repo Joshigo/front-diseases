@@ -200,6 +200,13 @@
             border-radius: 4px;
             font-size: 16px;
         }
+
+        .map-tooltip {
+            font-weight: bold;
+            font-size: 12px;
+            text-shadow: 0 0 2px white;
+            transform: translateY(-8px);
+        }
     </style>
 </head>
 
@@ -222,7 +229,6 @@
                 </tr>
             </thead>
             <tbody>
-                <!-- Los pacientes se insertarán aquí dinámicamente -->
             </tbody>
         </table>
 
@@ -234,7 +240,6 @@
         </div>
     </div>
 
-    <!-- Modal para mostrar las respuestas -->
     <div id="patientModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
@@ -242,7 +247,6 @@
                 <h2 id="modalTitle">Respuestas del Paciente</h2>
             </div>
             <div class="modal-body" id="modalBody">
-                <!-- Las respuestas se cargarán aquí -->
             </div>
         </div>
     </div>
@@ -251,11 +255,9 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            // Variables globales
             let map;
             let markers = [];
 
-            // Elementos del DOM
             const searchInput = document.getElementById('searchInput');
             const patientsTableBody = document.querySelector('#patientsTable tbody');
             const modal = document.getElementById('patientModal');
@@ -263,7 +265,6 @@
             const modalBody = document.getElementById('modalBody');
             const closeModal = document.querySelector('.close');
 
-            // Inicializar el mapa
             function initMap() {
                 map = L.map('map').setView([10.4806, -66.9036], 6);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -271,7 +272,6 @@
                 }).addTo(map);
             }
 
-            // Cargar pacientes
             function fetchPatients(name = '') {
                 axios.get(`http://127.0.0.1:8000/api/patients?name=${name}`)
                     .then(function (response) {
@@ -284,7 +284,6 @@
                     });
             }
 
-            // Renderizar tabla de pacientes
             function renderPatients(patients) {
                 patientsTableBody.innerHTML = '';
 
@@ -340,37 +339,29 @@
                     });
             }
 
-            // Mostrar modal con respuestas del paciente
             function showPatientModal(patientData) {
-                // Actualizar título del modal
                 modalTitle.textContent = `Respuestas de ${patientData.name} ${patientData.last_name}`;
 
-                // Limpiar contenido previo
                 modalBody.innerHTML = '';
 
-                // Verificar si hay respuestas
                 if (!patientData.answers || patientData.answers.length === 0) {
                     modalBody.innerHTML = '<p>Este paciente no tiene respuestas registradas.</p>';
                     modal.style.display = 'block';
                     return;
                 }
 
-                // Mostrar cada respuesta
                 patientData.answers.forEach(answer => {
                     const questionItem = document.createElement('div');
                     questionItem.className = 'question-item';
 
-                    // Aplicar estilo rojo si IsDanger es 1
                     if (answer.question.IsDanger === 1) {
                         questionItem.classList.add('danger');
                     }
 
-                    // Texto de la pregunta
                     const questionText = document.createElement('div');
                     questionText.className = 'question-text';
                     questionText.textContent = answer.question.name;
 
-                    // Texto de la respuesta
                     const responseText = document.createElement('div');
                     responseText.className = 'response-text';
                     responseText.textContent = 'Respuesta: ';
@@ -380,7 +371,6 @@
                     responseValue.textContent = answer.response ? 'Sí' : 'No';
                     responseText.appendChild(responseValue);
 
-                    // Indicador de peligro si es necesario
                     if (answer.question.IsDanger === 1) {
                         const dangerText = document.createElement('div');
                         dangerText.className = 'danger-text';
@@ -393,24 +383,20 @@
                     modalBody.appendChild(questionItem);
                 });
 
-                // Mostrar el modal
                 modal.style.display = 'block';
             }
 
-            // Actualizar mapa con pacientes
             function updateMap(patients) {
-                // Limpiar marcadores previos
                 markers.forEach(marker => map.removeLayer(marker));
                 markers = [];
 
-                // Agregar nuevos marcadores
                 patients.forEach(patient => {
+                    console.log(`Agregando paciente: ${patient.name}, Lat: ${patient.lat}, Long: ${patient.long}, Porcentaje: ${patient.percentage}`);
                     const color = determinarColor(patient.percentage);
-                    const marker = agregarPuntoAlMapa(patient.lat, patient.long, color);
+                    const marker = agregarPuntoAlMapa(patient.lat, patient.long, color, patient.name);
                     markers.push(marker);
                 });
 
-                // Ajustar vista del mapa si hay marcadores
                 if (markers.length > 0) {
                     const group = new L.featureGroup(markers);
                     map.fitBounds(group.getBounds());
@@ -418,7 +404,7 @@
             }
 
             // Agregar punto al mapa
-            function agregarPuntoAlMapa(lat, lng, color) {
+            function agregarPuntoAlMapa(lat, lng, color, patientName) {
                 const marker = L.circleMarker([lat, lng], {
                     color: color,
                     fillColor: color,
@@ -426,7 +412,20 @@
                     radius: 8
                 }).addTo(map);
 
-                marker.bindPopup(`Nivel de gravedad: <strong>${color.toUpperCase()}</strong>`);
+                // Tooltip permanente con el nombre del paciente
+                marker.bindTooltip(patientName, {
+                    permanent: true,       // Mostrar siempre
+                    direction: 'top',     // Posición del texto
+                    offset: [0, -5],      // Ajuste vertical
+                    className: 'map-tooltip' // Clase CSS para estilos (opcional)
+                });
+
+                // Popup con información detallada
+                marker.bindPopup(`
+                    Paciente: <strong>${patientName}</strong><br>
+                    Nivel de gravedad: <strong>${color.toUpperCase()}</strong>
+                `);
+
                 return marker;
             }
 
