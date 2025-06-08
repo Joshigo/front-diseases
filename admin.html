@@ -235,7 +235,7 @@
         <div id="map"></div>
 
         <div class="button-group">
-            <button id="backButton" class="button">Volver</button>
+            <button id="backButton" class="button" href="index.html">Volver</button>
             <button id="questionsButton" class="button">Agregar preguntas</button>
         </div>
     </div>
@@ -454,12 +454,12 @@
 
             document.getElementById('backButton').addEventListener('click', function () {
                 // Simular redirección
-                alert('Redirigiendo a la página de registro...');
+                window.location.href = 'index.html';
             });
 
             document.getElementById('questionsButton').addEventListener('click', function () {
                 // Simular redirección
-                alert('Redirigiendo a la página de preguntas...');
+                window.location.href = 'questions.html';
             });
 
             // Inicializar la aplicación
