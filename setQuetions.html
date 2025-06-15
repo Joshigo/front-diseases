@@ -134,6 +134,15 @@
         .button-container button:hover {
             background-color: #0056b3;
         }
+
+        .auth-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
     </style>
 </head>
 
@@ -178,70 +187,160 @@
     </div>
 
     <script>
+        // Función para obtener parámetros de la URL
+        function getUrlParameter(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name);
+        }
+
+        // Obtener el adminpass de la URL
+        const adminPass = getUrlParameter('adminpass');
+
+        // Verificar si se proporcionó el adminpass
+        if (!adminPass) {
+            document.body.innerHTML = `
+                <div class="auth-error">
+                    <h2>Acceso Denegado</h2>
+                    <p>No se proporcionó una contraseña de administrador válida.</p>
+                    <button onclick="window.location.href='admin.html'">Volver al Panel de Administración</button>
+                </div>
+            `;
+        }
+
+        // Función para construir URL con adminpass
+        function buildApiUrl(endpoint) {
+            const baseUrl = 'http://127.0.0.1:8000/api';
+            const url = new URL(`${baseUrl}${endpoint}`);
+            if (adminPass) {
+                url.searchParams.append('adminpass', adminPass);
+            }
+            return url.toString();
+        }
+
+        // Función para crear headers con adminpass
+        function getApiHeaders() {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+
+            // También podemos enviar el adminpass en el header si es necesario
+            if (adminPass) {
+                headers['X-Admin-Pass'] = adminPass;
+            }
+
+            return headers;
+        }
+
         document.getElementById('questionForm').addEventListener('submit', async function (event) {
             event.preventDefault();
 
             const question = document.getElementById('question').value;
             const isDanger = document.getElementById('isDanger').checked;
 
-            const response = await fetch('http://127.0.0.1:8000/api/questions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    disease_id: 1,
-                    name: question,
-                    IsDanger: isDanger
-                })
-            });
+            try {
+                const response = await fetch(buildApiUrl('/questions'), {
+                    method: 'POST',
+                    headers: getApiHeaders(),
+                    body: JSON.stringify({
+                        disease_id: 1,
+                        name: question,
+                        IsDanger: isDanger,
+                        adminpass: adminPass // También en el body si es necesario
+                    })
+                });
 
-            const messageElement = document.getElementById('message');
-            if (response.status === 201) {
-                messageElement.textContent = 'Pregunta creada correctamente.';
-                messageElement.className = 'message success';
-                messageElement.style.display = 'block';
-                document.getElementById('questionForm').reset();
-                loadQuestions();
-            } else {
-                messageElement.textContent = 'Error al crear la pregunta.';
+                const messageElement = document.getElementById('message');
+                if (response.status === 201) {
+                    messageElement.textContent = 'Pregunta creada correctamente.';
+                    messageElement.className = 'message success';
+                    messageElement.style.display = 'block';
+                    document.getElementById('questionForm').reset();
+                    loadQuestions();
+                } else if (response.status === 401 || response.status === 403) {
+                    messageElement.textContent = 'Error de autenticación. Contraseña de administrador inválida.';
+                    messageElement.className = 'message error';
+                    messageElement.style.display = 'block';
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    messageElement.textContent = errorData.message || 'Error al crear la pregunta.';
+                    messageElement.className = 'message error';
+                    messageElement.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error en la petición:', error);
+                const messageElement = document.getElementById('message');
+                messageElement.textContent = 'Error de conexión con el servidor.';
                 messageElement.className = 'message error';
                 messageElement.style.display = 'block';
             }
         });
 
         async function loadQuestions() {
-            const response = await fetch('http://127.0.0.1:8000/api/questions');
-            const questions = await response.json();
-            const tableBody = document.getElementById('questionsTable').querySelector('tbody');
-            tableBody.innerHTML = '';
+            try {
+                const response = await fetch(buildApiUrl('/questions'), {
+                    method: 'GET',
+                    headers: getApiHeaders()
+                });
 
-            questions.forEach(question => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${question.id}</td>
-                    <td>${question.name}</td>
-                    <td>${question.IsDanger ? 'Sí' : 'No'}</td>
-                    <td><button class="delete-button" onclick="deleteQuestion(${question.id})">Eliminar</button></td>
-                `;
-                tableBody.appendChild(row);
-            });
-        }
+                if (response.status === 401 || response.status === 403) {
+                    document.body.innerHTML = `
+                        <div class="auth-error">
+                            <h2>Acceso Denegado</h2>
+                            <p>Contraseña de administrador inválida.</p>
+                            <button onclick="window.location.href='admin.html'">Volver al Panel de Administración</button>
+                        </div>
+                    `;
+                    return;
+                }
 
-        async function deleteQuestion(id) {
-            const response = await fetch(`http://127.0.0.1:8000/api/questions/${id}`, {
-                method: 'DELETE'
-            });
+                const questions = await response.json();
+                const tableBody = document.getElementById('questionsTable').querySelector('tbody');
+                tableBody.innerHTML = '';
 
-            if (response.status === 200) {
-                loadQuestions();
-            } else {
-                alert('Error al eliminar la pregunta.');
+                questions.forEach(question => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${question.id}</td>
+                        <td>${question.name}</td>
+                        <td>${question.IsDanger ? 'Sí' : 'No'}</td>
+                        <td><button class="delete-button" onclick="deleteQuestion(${question.id})">Eliminar</button></td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error al cargar preguntas:', error);
+                alert('Error de conexión al cargar las preguntas.');
             }
         }
 
-        // Cargar las preguntas al cargar la página
-        loadQuestions();
+        async function deleteQuestion(id) {
+            if (!confirm('¿Está seguro de que desea eliminar esta pregunta?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(buildApiUrl(`/questions/${id}`), {
+                    method: 'DELETE',
+                    headers: getApiHeaders()
+                });
+
+                if (response.status === 200) {
+                    loadQuestions();
+                } else if (response.status === 401 || response.status === 403) {
+                    alert('Error de autenticación. Contraseña de administrador inválida.');
+                } else {
+                    alert('Error al eliminar la pregunta.');
+                }
+            } catch (error) {
+                console.error('Error al eliminar pregunta:', error);
+                alert('Error de conexión al eliminar la pregunta.');
+            }
+        }
+
+        // Cargar las preguntas al cargar la página (solo si hay adminpass)
+        if (adminPass) {
+            loadQuestions();
+        }
     </script>
 </body>
 
