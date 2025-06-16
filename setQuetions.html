@@ -187,16 +187,13 @@
     </div>
 
     <script>
-        // Función para obtener parámetros de la URL
         function getUrlParameter(name) {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get(name);
         }
 
-        // Obtener el adminpass de la URL
         const adminPass = getUrlParameter('adminpass');
 
-        // Verificar si se proporcionó el adminpass
         if (!adminPass) {
             document.body.innerHTML = `
                 <div class="auth-error">
@@ -207,7 +204,6 @@
             `;
         }
 
-        // Función para construir URL con adminpass
         function buildApiUrl(endpoint) {
             const baseUrl = 'http://127.0.0.1:8000/api';
             const url = new URL(`${baseUrl}${endpoint}`);
@@ -217,13 +213,11 @@
             return url.toString();
         }
 
-        // Función para crear headers con adminpass
         function getApiHeaders() {
             const headers = {
                 'Content-Type': 'application/json'
             };
 
-            // También podemos enviar el adminpass en el header si es necesario
             if (adminPass) {
                 headers['X-Admin-Pass'] = adminPass;
             }
@@ -245,7 +239,7 @@
                         disease_id: 1,
                         name: question,
                         IsDanger: isDanger,
-                        adminpass: adminPass // También en el body si es necesario
+                        adminpass: adminPass
                     })
                 });
 
@@ -277,7 +271,7 @@
 
         async function loadQuestions() {
             try {
-                const response = await fetch(buildApiUrl('/questions'), {
+                const response = await fetch(buildApiUrl('/questionsAdmin'), {
                     method: 'GET',
                     headers: getApiHeaders()
                 });

@@ -6,6 +6,127 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Proyecto: GeoSalud</title>
     <link rel="stylesheet" href="stylesIndex.css">
+    <style>
+        /* Estilos para el modal de contraseña */
+        #passwordModal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .password-modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            border-radius: 8px;
+            width: 300px;
+            max-width: 90%;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .password-modal-content h3 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .password-modal-content p {
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .password-input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+
+        .password-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .password-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        .password-btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        .password-btn.confirm {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .password-btn.confirm:hover {
+            background-color: #45a049;
+        }
+
+        .password-btn.cancel {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .password-btn.cancel:hover {
+            background-color: #da190b;
+        }
+
+        .error-message {
+            color: #f44336;
+            font-size: 14px;
+            margin-top: 10px;
+            display: none;
+            padding: 8px;
+            background-color: #ffebee;
+            border-radius: 4px;
+            border: 1px solid #ffcdd2;
+        }
+
+        .password-icon {
+            font-size: 48px;
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+
+        /* Animación para el modal */
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.7);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .password-modal-content.show {
+            animation: modalFadeIn 0.3s ease-out;
+        }
+    </style>
 </head>
 
 <body>
@@ -16,7 +137,7 @@
         <p>¡Bienvenido! Selecciona una opción para continuar:</p>
         <div class="buttons">
             <button onclick="location.href='register.html'">Registro</button>
-            <button onclick="location.href='setQuetions.html'">Crear Preguntas</button>
+            <button id="createQuestionsBtn">Crear Preguntas</button>
             <button onclick="location.href='admin.html'">Resultados</button>
         </div>
         <div class="rating">
@@ -28,11 +149,124 @@
             <span class="star" data-value="5">&#9734;</span>
         </div>
     </main>
+
+    <!-- Modal para contraseña de administrador -->
+    <div id="passwordModal">
+        <div class="password-modal-content">
+            <div class="password-icon">🔐</div>
+            <h3>Acceso de Administrador</h3>
+            <p>Ingrese la contraseña para crear preguntas:</p>
+            <input type="password" id="passwordInput" class="password-input" placeholder="Contraseña de administrador">
+            <div class="error-message" id="errorMessage">Por favor ingrese una contraseña válida</div>
+            <div class="password-buttons">
+                <button class="password-btn confirm" id="confirmPassword">
+                    <span>✓</span> Confirmar
+                </button>
+                <button class="password-btn cancel" id="cancelPassword">
+                    <span>✕</span> Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <p>Proyecto: Principios de la Ingeniería de Software - UNELLEZ</p>
         <p>Manuel Nieto, Francisco García</p>
     </footer>
+
     <script src="scriptsIndex.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const passwordModal = document.getElementById('passwordModal');
+            const passwordInput = document.getElementById('passwordInput');
+            const confirmPasswordBtn = document.getElementById('confirmPassword');
+            const cancelPasswordBtn = document.getElementById('cancelPassword');
+            const errorMessage = document.getElementById('errorMessage');
+            const createQuestionsBtn = document.getElementById('createQuestionsBtn');
+
+            function showPasswordModal() {
+                passwordModal.style.display = 'block';
+                passwordInput.value = '';
+                errorMessage.style.display = 'none';
+
+                // Agregar animación
+                const modalContent = document.querySelector('.password-modal-content');
+                modalContent.classList.add('show');
+
+                setTimeout(() => {
+                    passwordInput.focus();
+                }, 100);
+            }
+
+            function hidePasswordModal() {
+                const modalContent = document.querySelector('.password-modal-content');
+                modalContent.classList.remove('show');
+
+                setTimeout(() => {
+                    passwordModal.style.display = 'none';
+                }, 200);
+            }
+
+            function validatePasswordAndRedirect() {
+                const password = passwordInput.value.trim();
+
+                if (password === '') {
+                    errorMessage.textContent = 'Por favor ingrese una contraseña';
+                    errorMessage.style.display = 'block';
+                    passwordInput.focus();
+                    return;
+                }
+
+                if (password.length < 3) {
+                    errorMessage.textContent = 'La contraseña debe tener al menos 3 caracteres';
+                    errorMessage.style.display = 'block';
+                    passwordInput.focus();
+                    return;
+                }
+
+                const targetUrl = `setQuetions.html?adminpass=${encodeURIComponent(password)}`;
+
+                confirmPasswordBtn.innerHTML = '<span>⏳</span> Verificando...';
+                confirmPasswordBtn.disabled = true;
+
+                setTimeout(() => {
+                    window.location.href = targetUrl;
+                }, 500);
+            }
+
+            createQuestionsBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                showPasswordModal();
+            });
+
+            confirmPasswordBtn.addEventListener('click', validatePasswordAndRedirect);
+
+            cancelPasswordBtn.addEventListener('click', hidePasswordModal);
+
+            passwordInput.addEventListener('keypress', function (event) {
+                if (event.key === 'Enter') {
+                    validatePasswordAndRedirect();
+                }
+            });
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && passwordModal.style.display === 'block') {
+                    hidePasswordModal();
+                }
+            });
+
+            window.addEventListener('click', function (event) {
+                if (event.target === passwordModal) {
+                    hidePasswordModal();
+                }
+            });
+
+            passwordModal.addEventListener('hidden', function () {
+                confirmPasswordBtn.innerHTML = '<span>✓</span> Confirmar';
+                confirmPasswordBtn.disabled = false;
+            });
+        });
+    </script>
 </body>
 
 </html>
